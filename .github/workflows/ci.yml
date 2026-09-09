@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: "24"}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - run: make up
       - run: mkdir -p .local && docker compose run --rm seed > .local/demo-keys.json
       - run: npm ci && npx playwright install --with-deps chromium && npm run test:e2e
