@@ -1,0 +1,35 @@
+[project]
+name = "tenantfiles-api"
+version = "1.0.0"
+description = "Tenant-isolated, read-only S3 portal"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi>=0.116,<1", "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.13,<3", "pydantic-settings>=2.10,<3", "sqlalchemy>=2.0.43,<3",
+  "psycopg[binary]>=3.2,<4", "alembic>=1.16,<2",
+  "redis>=6.4,<8", "boto3>=1.40,<2", "itsdangerous>=2.2,<3",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4,<10", "pytest-cov>=6,<8", "httpx>=0.28,<1",
+  "moto[s3,sts,server]>=5.1,<6", "fakeredis[lua]>=2.31,<3",
+  "ruff>=0.12,<1", "pip-audit>=2.9,<3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = ["integration: requires a real PostgreSQL or Redis service"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/cli.py", "app/demo.py"]

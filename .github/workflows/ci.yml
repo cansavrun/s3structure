@@ -1,0 +1,86 @@
+name: Test and build
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tenantfiles
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: tenantfiles_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U tenantfiles" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    defaults:
+      run: {working-directory: backend}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {version: "0.11.24", python-version: "3.13"}
+      - run: uv sync --frozen
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run pytest --cov=app --cov-fail-under=85 --cov-report=term-missing
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://tenantfiles:test-only@localhost:5432/tenantfiles_test
+          TEST_REDIS_URL: redis://localhost:6379/15
+      - run: uv export --frozen --no-dev --no-emit-project -o /tmp/runtime-requirements.txt > /dev/null && uv run pip-audit --no-deps --disable-pip -r /tmp/runtime-requirements.txt
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run: {working-directory: frontend}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24", cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+      - run: npm run lint && npm test && npm run build
+      - run: npm audit --audit-level=high
+  containers-and-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - uses: docker/setup-buildx-action@v3
+      - run: make up
+      - run: mkdir -p .local && docker compose run --rm seed > .local/demo-keys.json
+      - run: npm ci && npx playwright install --with-deps chromium && npm run test:e2e
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:8080
+      - uses: aquasecurity/trivy-action@0.35.0
+        with: {image-ref: "tenantfiles-api:local", exit-code: "1", severity: "CRITICAL,HIGH", ignore-unfixed: true}
+      - uses: aquasecurity/trivy-action@0.35.0
+        with: {image-ref: "tenantfiles-web:local", exit-code: "1", severity: "CRITICAL,HIGH", ignore-unfixed: true}
+      - name: Export built images
+        run: docker save tenantfiles-api:local tenantfiles-web:local | gzip > tenantfiles-images.tar.gz
+      - uses: actions/upload-artifact@v4
+        with: {name: docker-images, path: tenantfiles-images.tar.gz, retention-days: 7}
+      - if: always()
+        run: docker compose logs --no-color > /tmp/compose.log && docker compose down
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-and-container-results
+          path: |
+            output/playwright
+            frontend/playwright-report
+            /tmp/compose.log
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run: {working-directory: infra/terraform}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive && terraform init -backend=false && terraform validate && terraform test

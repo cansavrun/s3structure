@@ -1,0 +1,15 @@
+application_role_name = "tenantfiles-api-task"
+region = "eu-central-1"
+customers = {
+  amy_c001 = {
+    bucket = "your-private-customer-data"
+    prefix = "amy_c001/"
+    external_id = "amy-c001-specific-random-identifier"
+  }
+  atlas_c002 = {
+    bucket = "your-private-customer-data"
+    prefix = "atlas_c002/"
+    external_id = "atlas-c002-specific-random-identifier"
+  }
+  # Ayrı bucket: prefix = "" kullanabilirsiniz.
+}

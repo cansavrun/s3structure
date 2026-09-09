@@ -1,0 +1,54 @@
+# Environment files (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Python environments, caches, and build artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+*.egg-info/
+build/
+
+# Test and coverage reports
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+coverage/
+test-results/
+playwright-report/
+
+# Frontend dependencies and generated files
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Local data, logs, and generated output
+.local/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+output/
+.DS_Store
+
+# Terraform local state, variables, and plans
+.terraform/
+*.tfstate*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+tfplan
+*.tfplan
+
+# Local TLS certificates and private keys
+infra/certs/*.pem
+infra/certs/*.key

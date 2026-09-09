@@ -1,0 +1,5 @@
+# Alan adınızı değiştirin. Host üzerinde Caddy 80/443 dinler; web yalnızca loopback'tedir.
+files.example.com {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    reverse_proxy 127.0.0.1:8080
+}

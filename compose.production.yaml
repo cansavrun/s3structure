@@ -1,0 +1,30 @@
+# Bağımsız manifest: demo compose.yaml ile üst üste bindirmeyin.
+# Production DB/Redis için yönetilen, yedeklenen servisler kullanılır.
+name: tenantfiles-production
+services:
+  api:
+    image: ${API_IMAGE:?Set API_IMAGE to a tested immutable image digest}
+    env_file: .env.production
+    command: [uvicorn, "app.main:create_app", --factory, --host, 0.0.0.0, --port, "8000", --no-access-log, --proxy-headers, --forwarded-allow-ips, "172.29.72.10", --limit-concurrency, "100", --log-config, logging.json]
+    volumes: [./infra/certs:/run/certs:ro]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  web:
+    image: ${WEB_IMAGE:?Set WEB_IMAGE to a tested immutable image digest}
+    ports: ["127.0.0.1:8080:8080"]
+    networks:
+      default: {ipv4_address: 172.29.72.10}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+networks:
+  default:
+    ipam:
+      config: [{subnet: 172.29.72.0/24}]

@@ -1,0 +1,91 @@
+name: tenantfiles
+x-api-env: &api-env
+  ENVIRONMENT: development
+  APP_SECRET: ${APP_SECRET:?Run make init first}
+  DATABASE_URL: postgresql+psycopg://tenantfiles:${POSTGRES_PASSWORD:-local-demo-only}@db:5432/tenantfiles
+  REDIS_URL: redis://redis:6379/0
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8080}
+  S3_MODE: local
+  S3_ENDPOINT_URL: http://s3:5000
+  AWS_ACCESS_KEY_ID: local-demo
+  AWS_SECRET_ACCESS_KEY: local-demo
+  AWS_REGION: us-east-1
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: tenantfiles
+      POSTGRES_USER: tenantfiles
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-demo-only}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U tenantfiles -d tenantfiles]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "no", --save, "", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  s3:
+    build: {context: ./backend, target: development}
+    command: [moto_server, -H, 0.0.0.0, -p, "5000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: {context: ./backend, target: production}
+    environment: *api-env
+    command: [alembic, upgrade, head]
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    image: tenantfiles-api:local
+    build: {context: ./backend, target: production}
+    environment: *api-env
+    # web dışında backend'e erişen dış istemci yok; IP güveni web'in sabit adresiyle sınırlı.
+    command: [uvicorn, "app.main:create_app", --factory, --host, 0.0.0.0, --port, "8000", --no-access-log, --proxy-headers, --forwarded-allow-ips, "172.29.71.10", --limit-concurrency, "100", --log-config, logging.json]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      s3: {condition: service_healthy}
+    restart: unless-stopped
+  web:
+    image: tenantfiles-web:local
+    build: ./frontend
+    ports: ["127.0.0.1:8080:8080"]
+    networks:
+      default: {ipv4_address: 172.29.71.10}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+  seed:
+    profiles: [tools]
+    image: tenantfiles-api:local
+    build: {context: ./backend, target: production}
+    environment: *api-env
+    command: [python, -m, app.demo]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  postgres-data:
+networks:
+  default:
+    ipam:
+      config: [{subnet: 172.29.71.0/24}]
