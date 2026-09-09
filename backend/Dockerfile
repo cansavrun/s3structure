@@ -1,5 +1,5 @@
 FROM ghcr.io/astral-sh/uv:0.11.24 AS uv
-FROM python:3.13-slim AS base
+FROM python:3.14-slim AS base
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
@@ -14,7 +14,7 @@ CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port
 FROM base AS builder
 RUN uv sync --frozen --no-dev --no-install-project
 
-FROM python:3.13-slim AS production
+FROM python:3.14-slim AS production
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
 # Runtime image paket kurmaz. Pip'in vendored bağımlılıklarını ve bootstrap kopyasını çıkar.
