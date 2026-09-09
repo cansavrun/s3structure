@@ -64,12 +64,12 @@ jobs:
         with: {image-ref: "tenantfiles-web:local", exit-code: "1", severity: "CRITICAL,HIGH", ignore-unfixed: true}
       - name: Export built images
         run: docker save tenantfiles-api:local tenantfiles-web:local | gzip > tenantfiles-images.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: {name: docker-images, path: tenantfiles-images.tar.gz, retention-days: 7}
       - if: always()
         run: docker compose logs --no-color > /tmp/compose.log && docker compose down
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-and-container-results
           path: |
